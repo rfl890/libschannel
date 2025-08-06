@@ -62,7 +62,7 @@ int main(void)
         uint64_t buf;
         memcpy(&buf, outbuf + i, 8);
         if (buf == 0x0A1A0A0D474E5089) {
-            printf("Found PNG header at offext %08x\n", i);
+            printf("Found PNG header at offset %08x\n", i);
             break;
         }
     }
