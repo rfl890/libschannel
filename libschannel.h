@@ -34,6 +34,7 @@ struct tls_state {
     SecPkgContext_StreamSizes stream_sizes;
 
     int initialized;
+    int closed;
 };
 
 int tls_connect(struct tls_state *state, char *hostname, send_recv_func send, send_recv_func recv, void *extra);

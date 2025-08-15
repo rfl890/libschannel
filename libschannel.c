@@ -58,6 +58,7 @@ int tls_connect(struct tls_state *state, char *hostname, send_recv_func send, se
     state->hostname = strdup(hostname);
 
     state->initialized = 0;
+    state->closed = 0;
 
     while (1) {
         DWORD flags = LIBSCHANNEL_ISC_FLAGS;
@@ -112,7 +113,7 @@ int tls_connect(struct tls_state *state, char *hostname, send_recv_func send, se
         if (in_buffers[1].BufferType == SECBUFFER_EXTRA) {
             memmove(state->in_buffer, state->in_buffer + (state->in_buffer_size - in_buffers[1].cbBuffer), in_buffers[1].cbBuffer);
             state->in_buffer_size = in_buffers[1].cbBuffer;
-        } else if (in_buffers[1].BufferType != SECBUFFER_MISSING) {
+        } else if (status != SEC_E_INCOMPLETE_MESSAGE) {
             state->in_buffer_size = 0;
         }
 
@@ -176,7 +177,12 @@ Returns: len on success
 */
 
 ptrdiff_t tls_read(struct tls_state *state, char *buf, ptrdiff_t len) {
+	if (state->closed) {
+		return 0;
+	}
+
     ptrdiff_t amount_read = 0;
+
     while (len > 0) {
         if (state->out_buffer && (state->out_buffer_size > 0)) {
             unsigned long copy_amount = min(len, (ptrdiff_t)state->out_buffer_size);
@@ -239,8 +245,8 @@ ptrdiff_t tls_read(struct tls_state *state, char *buf, ptrdiff_t len) {
                 }
                 case SEC_I_CONTEXT_EXPIRED: {
                     // Shut down the connection
-                    dprintf("FIXME: SEC_I_CONTEXT_EXPIRED\n");
-                    exit(1);
+                    state->closed = 1;
+                    goto Success;
                 }
                 case SEC_I_RENEGOTIATE: {
                     // Renegotiate
@@ -322,6 +328,7 @@ ptrdiff_t tls_read(struct tls_state *state, char *buf, ptrdiff_t len) {
 
             int result = state->recv(state->in_buffer + state->in_buffer_size, sizeof(state->in_buffer) - state->in_buffer_size, state->extra);
             if (result == 0) {
+                state->closed = 1;
                 goto Success;
             } else if (result < 0) {
                 return status;
@@ -341,6 +348,9 @@ Success:
             nonzero on failure
 */
 int tls_write(struct tls_state *state, char *buf, size_t len) {
+    if (state->closed) {
+        return E_FAIL;
+	}
     while (len > 0) {
         unsigned long copy_amount = min(len, (size_t)state->stream_sizes.cbMaximumMessage);
         char *write_buffer = _alloca(sizeof(state->in_buffer));
