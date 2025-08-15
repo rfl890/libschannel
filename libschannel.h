@@ -40,5 +40,5 @@ struct tls_state {
 int tls_connect(struct tls_state *state, char *hostname, send_recv_func send, send_recv_func recv, void *extra);
 int tls_write(struct tls_state *state, char *buf, size_t len);
 ptrdiff_t tls_read(struct tls_state *state, char *buf, ptrdiff_t len);
-
+void tls_disconnect(struct tls_state *state);
 #endif

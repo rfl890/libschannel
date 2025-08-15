@@ -57,6 +57,11 @@ int tls_connect(struct tls_state *state, char *hostname, send_recv_func send, se
     state->extra = extra;
     state->hostname = strdup(hostname);
 
+    if (state->hostname == NULL) {
+        status = E_OUTOFMEMORY;
+        goto Error;
+    }
+
     state->initialized = 0;
     state->closed = 0;
 
@@ -163,6 +168,8 @@ Success:
     QueryContextAttributes(&state->ctx_handle, SECPKG_ATTR_STREAM_SIZES, &state->stream_sizes);
     return status;
 Error:
+    state->closed = 2;
+    free(state->hostname);
     DeleteSecurityContext(&state->ctx_handle);
     FreeCredentialsHandle(&state->cred_handle);
     return status;
@@ -394,4 +401,83 @@ int tls_write(struct tls_state *state, char *buf, size_t len) {
     }
 
     return 0;
+}
+
+ void tls_disconnect(struct tls_state *state) {
+    if (state->closed != 2) {
+        state->closed = 2;
+        
+        SECURITY_STATUS status;
+        DWORD token = SCHANNEL_SHUTDOWN;
+        DWORD flags = LIBSCHANNEL_ISC_FLAGS;
+
+        SecBuffer buf_token;
+
+        SecBufferDesc buf_token_desc;
+
+        SecBuffer in_buffers[2];
+        SecBuffer out_buffers[2];
+
+        SecBufferDesc in_desc;
+        SecBufferDesc out_desc;
+
+        buf_token.BufferType = SECBUFFER_TOKEN;
+        buf_token.pvBuffer = &token;
+        buf_token.cbBuffer = sizeof(token);
+
+        buf_token_desc.ulVersion = SECBUFFER_VERSION;
+        buf_token_desc.pBuffers = &buf_token;
+        buf_token_desc.cBuffers = 1;
+
+        ApplyControlToken(&state->ctx_handle, &buf_token_desc);
+
+        // attempt to send any final data
+
+        in_buffers[0].BufferType = SECBUFFER_TOKEN;
+        in_buffers[0].pvBuffer = state->in_buffer;
+        in_buffers[0].cbBuffer = state->in_buffer_size;
+
+        in_buffers[1].BufferType = SECBUFFER_EMPTY;
+        in_buffers[1].pvBuffer = NULL;
+        in_buffers[1].cbBuffer = 0;
+
+        out_buffers[0].BufferType = SECBUFFER_TOKEN;
+        out_buffers[0].pvBuffer = NULL;
+        out_buffers[0].cbBuffer = 0;
+
+        out_buffers[1].BufferType = SECBUFFER_ALERT;
+        out_buffers[1].pvBuffer = NULL;
+        out_buffers[1].cbBuffer = 0;
+
+        in_desc.ulVersion = SECBUFFER_VERSION;
+        in_desc.pBuffers = in_buffers;
+        in_desc.cBuffers = _countof(in_buffers);
+
+        out_desc.ulVersion = SECBUFFER_VERSION;
+        out_desc.pBuffers = out_buffers;
+        out_desc.cBuffers = _countof(out_buffers);
+
+        status = InitializeSecurityContext(&state->cred_handle,
+                                        state->
+                                        initialized ? &state->ctx_handle :
+                                        NULL,
+                                        state->
+                                        initialized ? NULL : state->hostname,
+                                        flags, 0, 0,
+                                        state->initialized ? &in_desc : NULL,
+                                        0,
+                                        state->
+                                        initialized ? NULL :
+                                        &state->ctx_handle, &out_desc, &flags,
+                                        0);
+
+        if (status == SEC_E_OK) {
+            // attempt to write any extra data
+            state->send(out_buffers[0].pvBuffer, out_buffers[0].cbBuffer, state->extra);
+        }
+
+        DeleteSecurityContext(&state->ctx_handle);
+        FreeCredentialsHandle(&state->cred_handle);
+        free(state->hostname);
+    }
 }
