@@ -1,5 +1,5 @@
 # libschannel
-A C library to make use of the Schannel TLS API easier.
+A C library to make usage of the Schannel TLS API easier.
 
 # Status
 Working, needs tests.
