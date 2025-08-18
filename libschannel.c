@@ -27,9 +27,7 @@ static void init_sec_buffer(SecBuffer *buffer, void *pvBuffer, unsigned long cbB
 }
 
 static void init_sec_buffer_empty(SecBuffer *buffer, unsigned long BufferType) {
-    buffer->BufferType = BufferType;
-    buffer->cbBuffer = 0;
-    buffer->pvBuffer = NULL;
+    init_sec_buffer(buffer, NULL, 0, BufferType);
 }
 
 static void init_sec_buffer_desc(SecBufferDesc *desc, SecBuffer *buffers, unsigned long buffer_count) {
