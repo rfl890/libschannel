@@ -415,7 +415,7 @@ int tls_write(struct tls_state *state, char *buf, size_t len) {
                                         &state->ctx_handle, &out_desc, &flags,
                                         0);
 
-        if (status == SEC_E_OK) {
+        if ((status == SEC_E_OK) || (status == SEC_I_CONTEXT_EXPIRED)) {
             // send the final shutdown message
             state->send(out_buffers[0].pvBuffer, out_buffers[0].cbBuffer, state->extra);
             FreeContextBuffer(out_buffers[0].pvBuffer);
