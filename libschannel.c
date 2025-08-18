@@ -109,7 +109,7 @@ int tls_connect(struct tls_state *state, char *hostname, send_recv_func send, se
             0,
             state->initialized ? &in_desc : NULL,
             0,
-            state->initialized ? NULL : &state->ctx_handle,
+            &state->ctx_handle,
             &out_desc,
             &flags,
             0
@@ -278,7 +278,7 @@ ptrdiff_t tls_read(struct tls_state *state, char *buf, ptrdiff_t len) {
                         0,
                         state->initialized ? &in_desc : NULL,
                         0,
-                        state->initialized ? NULL : &state->ctx_handle,
+                        &state->ctx_handle,
                         &out_desc,
                         &flags,
                         0
@@ -410,8 +410,6 @@ int tls_write(struct tls_state *state, char *buf, size_t len) {
                                         flags, 0, 0,
                                         state->initialized ? &in_desc : NULL,
                                         0,
-                                        state->
-                                        initialized ? NULL :
                                         &state->ctx_handle, &out_desc, &flags,
                                         0);
 
