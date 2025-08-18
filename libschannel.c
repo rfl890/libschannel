@@ -19,6 +19,25 @@
     (ISC_REQ_ALLOCATE_MEMORY | ISC_REQ_CONFIDENTIALITY | ISC_REQ_INTEGRITY | ISC_REQ_REPLAY_DETECT |                   \
      ISC_REQ_SEQUENCE_DETECT | ISC_REQ_STREAM | ISC_REQ_USE_SUPPLIED_CREDS)
 
+
+static void init_sec_buffer(SecBuffer *buffer, void *pvBuffer, unsigned long cbBuffer, unsigned long BufferType) {
+    buffer->BufferType = BufferType;
+    buffer->cbBuffer = cbBuffer;
+    buffer->pvBuffer = pvBuffer;
+}
+
+static void init_sec_buffer_empty(SecBuffer *buffer, unsigned long BufferType) {
+    buffer->BufferType = BufferType;
+    buffer->cbBuffer = 0;
+    buffer->pvBuffer = NULL;
+}
+
+static void init_sec_buffer_desc(SecBufferDesc *desc, SecBuffer *buffers, unsigned long buffer_count) {
+    desc->ulVersion = SECBUFFER_VERSION;
+    desc->cBuffers = buffer_count;
+    desc->pBuffers = buffers;
+}
+
 /*
     Returns: 0 (on success)
             nonzero (on error, cast to an HRESULT)
@@ -74,29 +93,14 @@ int tls_connect(struct tls_state *state, char *hostname, send_recv_func send, se
         SecBufferDesc in_desc;
         SecBufferDesc out_desc;
 
-        in_buffers[0].BufferType = SECBUFFER_TOKEN;
-        in_buffers[0].pvBuffer = state->in_buffer;
-        in_buffers[0].cbBuffer = state->in_buffer_size;
+        init_sec_buffer(&in_buffers[0], state->in_buffer, state->in_buffer_size, SECBUFFER_TOKEN);
+        init_sec_buffer_empty(&in_buffers[1], SECBUFFER_EMPTY);
 
-        in_buffers[1].BufferType = SECBUFFER_EMPTY;
-        in_buffers[1].pvBuffer = NULL;
-        in_buffers[1].cbBuffer = 0;
+        init_sec_buffer_empty(&out_buffers[0], SECBUFFER_TOKEN);
+        init_sec_buffer_empty(&out_buffers[1], SECBUFFER_ALERT);
 
-        out_buffers[0].BufferType = SECBUFFER_TOKEN;
-        out_buffers[0].pvBuffer = NULL;
-        out_buffers[0].cbBuffer = 0;
-
-        out_buffers[1].BufferType = SECBUFFER_ALERT;
-        out_buffers[1].pvBuffer = NULL;
-        out_buffers[1].cbBuffer = 0;
-
-        in_desc.ulVersion = SECBUFFER_VERSION;
-        in_desc.pBuffers = in_buffers;
-        in_desc.cBuffers = _countof(in_buffers);
-
-        out_desc.ulVersion = SECBUFFER_VERSION;
-        out_desc.pBuffers = out_buffers;
-        out_desc.cBuffers = _countof(out_buffers);
+        init_sec_buffer_desc(&in_desc, in_buffers, _countof(in_buffers));
+        init_sec_buffer_desc(&out_desc, out_buffers, _countof(out_buffers));
 
         status = InitializeSecurityContext(
             &state->cred_handle,
@@ -161,6 +165,7 @@ int tls_connect(struct tls_state *state, char *hostname, send_recv_func send, se
             status = E_FAIL;
             goto Error;
         }
+
         state->in_buffer_size += read;
     }
 
@@ -216,25 +221,12 @@ ptrdiff_t tls_read(struct tls_state *state, char *buf, ptrdiff_t len) {
             SecBuffer buffers[4];
             SecBufferDesc desc;
             
-            buffers[0].BufferType = SECBUFFER_DATA;
-            buffers[0].pvBuffer = state->in_buffer;
-            buffers[0].cbBuffer = state->in_buffer_size;
+            init_sec_buffer(&buffers[0], state->in_buffer, state->in_buffer_size, SECBUFFER_DATA);
+            init_sec_buffer_empty(&buffers[1], SECBUFFER_EMPTY);
+            init_sec_buffer_empty(&buffers[2], SECBUFFER_EMPTY);
+            init_sec_buffer_empty(&buffers[3], SECBUFFER_EMPTY);
 
-            buffers[1].BufferType = SECBUFFER_EMPTY;
-            buffers[1].pvBuffer = NULL;
-            buffers[1].cbBuffer = 0;
-
-            buffers[2].BufferType = SECBUFFER_EMPTY;
-            buffers[2].pvBuffer = NULL;
-            buffers[2].cbBuffer = 0;
-           
-            buffers[3].BufferType = SECBUFFER_EMPTY;
-            buffers[3].pvBuffer = NULL;
-            buffers[3].cbBuffer = 0;
-
-            desc.ulVersion = SECBUFFER_VERSION;
-            desc.pBuffers = buffers;
-            desc.cBuffers = _countof(buffers);
+            init_sec_buffer_desc(&desc, buffers, _countof(buffers));
 
             SECURITY_STATUS status = DecryptMessage(&state->ctx_handle, &desc, 0, NULL);
             
@@ -270,29 +262,14 @@ ptrdiff_t tls_read(struct tls_state *state, char *buf, ptrdiff_t len) {
                     SecBufferDesc in_desc;
                     SecBufferDesc out_desc;
 
-                    in_buffers[0].BufferType = SECBUFFER_TOKEN;
-                    in_buffers[0].pvBuffer = buffers[i].pvBuffer;
-                    in_buffers[0].cbBuffer = buffers[i].cbBuffer;
+                    init_sec_buffer(&in_buffers[0], buffers[i].pvBuffer, buffers[i].cbBuffer, SECBUFFER_TOKEN);
+                    init_sec_buffer_empty(&in_buffers[1], SECBUFFER_EMPTY);
 
-                    in_buffers[1].BufferType = SECBUFFER_EMPTY;
-                    in_buffers[1].pvBuffer = NULL;
-                    in_buffers[1].cbBuffer = 0;
+                    init_sec_buffer_empty(&out_buffers[0], SECBUFFER_TOKEN);
+                    init_sec_buffer_empty(&out_buffers[1], SECBUFFER_ALERT);
 
-                    out_buffers[0].BufferType = SECBUFFER_TOKEN;
-                    out_buffers[0].pvBuffer = NULL;
-                    out_buffers[0].cbBuffer = 0;
-
-                    out_buffers[1].BufferType = SECBUFFER_ALERT;
-                    out_buffers[1].pvBuffer = NULL;
-                    out_buffers[1].cbBuffer = 0;
-
-                    in_desc.ulVersion = SECBUFFER_VERSION;
-                    in_desc.pBuffers = in_buffers;
-                    in_desc.cBuffers = _countof(in_buffers);
-
-                    out_desc.ulVersion = SECBUFFER_VERSION;
-                    out_desc.pBuffers = out_buffers;
-                    out_desc.cBuffers = _countof(out_buffers);
+                    init_sec_buffer_desc(&in_desc, in_buffers, _countof(in_buffers));
+                    init_sec_buffer_desc(&out_desc, out_buffers, _countof(out_buffers));
 
                     status = InitializeSecurityContext(
                         &state->cred_handle,
@@ -363,26 +340,17 @@ int tls_write(struct tls_state *state, char *buf, size_t len) {
         char *write_buffer = _alloca(sizeof(state->in_buffer));
 
         SecBuffer buffers[4];
-        
-        buffers[0].BufferType = SECBUFFER_STREAM_HEADER;
-        buffers[0].pvBuffer = write_buffer;
-        buffers[0].cbBuffer = state->stream_sizes.cbHeader;
+        SecBufferDesc desc;
 
-        buffers[1].BufferType = SECBUFFER_DATA;
-        buffers[1].pvBuffer = write_buffer + state->stream_sizes.cbHeader;
-        buffers[1].cbBuffer = copy_amount;
+        init_sec_buffer(&buffers[0], write_buffer, state->stream_sizes.cbHeader, SECBUFFER_STREAM_HEADER);
+        init_sec_buffer(&buffers[1], write_buffer + state->stream_sizes.cbHeader, copy_amount, SECBUFFER_DATA);
+        init_sec_buffer(&buffers[2], write_buffer + state->stream_sizes.cbHeader + copy_amount, state->stream_sizes.cbTrailer, SECBUFFER_STREAM_TRAILER);
+        init_sec_buffer_empty(&buffers[3], SECBUFFER_EMPTY);
 
-        buffers[2].BufferType = SECBUFFER_STREAM_TRAILER;
-        buffers[2].pvBuffer = write_buffer + state->stream_sizes.cbHeader + copy_amount;
-        buffers[2].cbBuffer = state->stream_sizes.cbTrailer;
-
-        buffers[3].BufferType = SECBUFFER_EMPTY;
-        buffers[3].pvBuffer = NULL;
-        buffers[3].cbBuffer = 0;
+        init_sec_buffer_desc(&desc, buffers, _countof(buffers));
 
         memcpy(buffers[1].pvBuffer,  buf, copy_amount);
 
-        SecBufferDesc desc;
         
         desc.ulVersion = SECBUFFER_VERSION;
         desc.pBuffers = buffers;
@@ -412,7 +380,6 @@ int tls_write(struct tls_state *state, char *buf, size_t len) {
         DWORD flags = LIBSCHANNEL_ISC_FLAGS;
 
         SecBuffer buf_token;
-
         SecBufferDesc buf_token_desc;
 
         SecBuffer in_buffers[2];
@@ -421,41 +388,20 @@ int tls_write(struct tls_state *state, char *buf, size_t len) {
         SecBufferDesc in_desc;
         SecBufferDesc out_desc;
 
-        buf_token.BufferType = SECBUFFER_TOKEN;
-        buf_token.pvBuffer = &token;
-        buf_token.cbBuffer = sizeof(token);
-
-        buf_token_desc.ulVersion = SECBUFFER_VERSION;
-        buf_token_desc.pBuffers = &buf_token;
-        buf_token_desc.cBuffers = 1;
+        init_sec_buffer(&buf_token, &token, sizeof(token), SECBUFFER_TOKEN);
+        init_sec_buffer_desc(&buf_token_desc, &buf_token, 1);
 
         ApplyControlToken(&state->ctx_handle, &buf_token_desc);
 
         // attempt to send any final data
+        init_sec_buffer(&in_buffers[0], state->in_buffer, state->in_buffer_size, SECBUFFER_TOKEN);
+        init_sec_buffer_empty(&in_buffers[1], SECBUFFER_EMPTY);
 
-        in_buffers[0].BufferType = SECBUFFER_TOKEN;
-        in_buffers[0].pvBuffer = state->in_buffer;
-        in_buffers[0].cbBuffer = state->in_buffer_size;
+        init_sec_buffer_empty(&out_buffers[0], SECBUFFER_TOKEN);
+        init_sec_buffer_empty(&out_buffers[1], SECBUFFER_ALERT);
 
-        in_buffers[1].BufferType = SECBUFFER_EMPTY;
-        in_buffers[1].pvBuffer = NULL;
-        in_buffers[1].cbBuffer = 0;
-
-        out_buffers[0].BufferType = SECBUFFER_TOKEN;
-        out_buffers[0].pvBuffer = NULL;
-        out_buffers[0].cbBuffer = 0;
-
-        out_buffers[1].BufferType = SECBUFFER_ALERT;
-        out_buffers[1].pvBuffer = NULL;
-        out_buffers[1].cbBuffer = 0;
-
-        in_desc.ulVersion = SECBUFFER_VERSION;
-        in_desc.pBuffers = in_buffers;
-        in_desc.cBuffers = _countof(in_buffers);
-
-        out_desc.ulVersion = SECBUFFER_VERSION;
-        out_desc.pBuffers = out_buffers;
-        out_desc.cBuffers = _countof(out_buffers);
+        init_sec_buffer_desc(&in_desc, in_buffers, _countof(in_buffers));
+        init_sec_buffer_desc(&out_desc, out_buffers, _countof(out_buffers));
 
         status = InitializeSecurityContext(&state->cred_handle,
                                         state->
@@ -472,8 +418,9 @@ int tls_write(struct tls_state *state, char *buf, size_t len) {
                                         0);
 
         if (status == SEC_E_OK) {
-            // attempt to write any extra data
+            // send the final shutdown message
             state->send(out_buffers[0].pvBuffer, out_buffers[0].cbBuffer, state->extra);
+            FreeContextBuffer(out_buffers[0].pvBuffer);
         }
 
         DeleteSecurityContext(&state->ctx_handle);

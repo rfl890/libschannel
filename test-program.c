@@ -70,4 +70,5 @@ int main(void)
     FILE *f = fopen("out.png", "wb");
     fwrite(outbuf + i, 1, read - i, f);
     fclose(f);
+    tls_disconnect(&state);
 }
